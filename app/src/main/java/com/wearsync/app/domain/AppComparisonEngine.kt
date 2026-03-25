@@ -1,7 +1,5 @@
 package com.wearsync.app.domain
 
-import com.wearsync.app.data.WearAppDatabase
-
 object AppComparisonEngine {
 
     fun compare(phoneApps: List<AppInfo>, watchPackages: Set<String>): ComparisonResult {
@@ -11,7 +9,7 @@ object AppComparisonEngine {
         for (app in phoneApps) {
             if (app.packageName in watchPackages) {
                 alreadyOnWatch.add(app)
-            } else if (WearAppDatabase.hasWearVersion(app.packageName)) {
+            } else {
                 notOnWatch.add(app)
             }
         }
@@ -23,12 +21,12 @@ object AppComparisonEngine {
     }
 
     /**
-     * Returns phone apps that are not on the watch AND not in the bundled Wear database.
-     * These are candidates for Play Store checking.
+     * Returns phone apps that are not on the watch.
+     * These are candidates for Play Store Wear OS version checking.
      */
     fun uncheckedApps(phoneApps: List<AppInfo>, watchPackages: Set<String>): List<AppInfo> {
         return phoneApps.filter { app ->
-            app.packageName !in watchPackages && !WearAppDatabase.hasWearVersion(app.packageName)
+            app.packageName !in watchPackages
         }
     }
 }

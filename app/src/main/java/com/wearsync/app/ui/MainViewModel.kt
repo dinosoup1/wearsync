@@ -1,7 +1,6 @@
 package com.wearsync.app.ui
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,7 +8,6 @@ import com.wearsync.app.data.PhonePackageRepository
 import com.wearsync.app.data.PlayStoreChecker
 import com.wearsync.app.data.WatchConnectionException
 import com.wearsync.app.data.WatchPackageRepository
-import com.wearsync.app.data.WearAppDatabase
 import com.wearsync.app.data.WearCheckResult
 import com.wearsync.app.domain.AppComparisonEngine
 import com.wearsync.app.domain.AppInfo
@@ -29,9 +27,7 @@ sealed interface UiState {
         val isRefreshing: Boolean = false,
         val batchInstallProgress: BatchInstallProgress? = null,
         val isCheckingPlayStore: Boolean = false,
-        val autoCheckPlayStore: Boolean = false,
-        val hasCheckedPlayStore: Boolean = false,
-        val uncheckedCount: Int = 0
+        val hasCheckedPlayStore: Boolean = false
     ) : UiState
     data class Error(val message: String) : UiState
 }
@@ -55,11 +51,7 @@ class MainViewModel(
     private var lastPhoneApps: List<AppInfo> = emptyList()
     private var lastWatchPackages: Set<String> = emptySet()
 
-    private val settingsPrefs: SharedPreferences =
-        applicationContext.getSharedPreferences("wearsync_settings", Context.MODE_PRIVATE)
-
     init {
-        WearAppDatabase.load(applicationContext)
         loadData()
     }
 
@@ -78,20 +70,23 @@ class MainViewModel(
                 lastPhoneApps = phoneApps
                 lastWatchPackages = watchPackages
 
-                val result = AppComparisonEngine.compare(phoneApps, watchPackages)
-                val unchecked = AppComparisonEngine.uncheckedApps(phoneApps, watchPackages)
-                val autoCheck = settingsPrefs.getBoolean("auto_check_play_store", false)
+                // Show initial state while we check Play Store
+                val result = ComparisonResult(
+                    notOnWatch = emptyList(),
+                    alreadyOnWatch = phoneApps.filter { it.packageName in watchPackages }
+                        .sortedBy { it.appLabel.lowercase() },
+                    discoveredWearApps = emptyList()
+                )
 
                 _uiState.value = UiState.Success(
                     result = result,
                     showSystemApps = showSystemApps,
-                    autoCheckPlayStore = autoCheck,
-                    uncheckedCount = unchecked.size
+                    isCheckingPlayStore = true
                 )
 
-                if (autoCheck && unchecked.isNotEmpty()) {
-                    checkPlayStore()
-                }
+                // Automatically check Play Store for all apps not on watch
+                checkPlayStore()
+
             } catch (e: WatchConnectionException) {
                 _uiState.value = UiState.Error(
                     message = e.message ?: "Failed to connect to watch"
@@ -109,39 +104,76 @@ class MainViewModel(
         loadData()
     }
 
-    fun toggleAutoCheckPlayStore() {
-        val currentState = _uiState.value
-        if (currentState !is UiState.Success) return
-        val newValue = !currentState.autoCheckPlayStore
-        settingsPrefs.edit().putBoolean("auto_check_play_store", newValue).apply()
-        _uiState.value = currentState.copy(autoCheckPlayStore = newValue)
-    }
-
     fun checkPlayStore() {
         val currentState = _uiState.value
         if (currentState !is UiState.Success) return
-        if (currentState.isCheckingPlayStore) return
 
-        val unchecked = AppComparisonEngine.uncheckedApps(lastPhoneApps, lastWatchPackages)
-        if (unchecked.isEmpty()) return
+        val candidates = AppComparisonEngine.uncheckedApps(lastPhoneApps, lastWatchPackages)
+        if (candidates.isEmpty()) {
+            _uiState.value = currentState.copy(
+                isCheckingPlayStore = false,
+                hasCheckedPlayStore = true
+            )
+            return
+        }
 
         viewModelScope.launch {
             _uiState.value = currentState.copy(isCheckingPlayStore = true)
 
             try {
-                val results = playStoreChecker.checkPackages(unchecked.map { it.packageName })
-                val discovered = unchecked.filter { app ->
-                    results[app.packageName] == WearCheckResult.HAS_WEAR_VERSION
-                }.sortedBy { it.appLabel.lowercase() }
+                // First check cache for instant results
+                val cached = mutableListOf<AppInfo>()
+                val needsCheck = mutableListOf<AppInfo>()
 
-                val current = _uiState.value
-                if (current is UiState.Success) {
-                    _uiState.value = current.copy(
-                        result = current.result.copy(discoveredWearApps = discovered),
-                        isCheckingPlayStore = false,
-                        hasCheckedPlayStore = true,
-                        uncheckedCount = unchecked.size - discovered.size
-                    )
+                for (app in candidates) {
+                    val cachedResult = playStoreChecker.getCachedResult(app.packageName)
+                    if (cachedResult == WearCheckResult.HAS_WEAR_VERSION) {
+                        cached.add(app)
+                    } else if (cachedResult == null) {
+                        needsCheck.add(app)
+                    }
+                    // NO_WEAR_VERSION and CHECK_FAILED are skipped (already checked)
+                }
+
+                // Show cached results immediately
+                if (cached.isNotEmpty()) {
+                    val current = _uiState.value
+                    if (current is UiState.Success) {
+                        _uiState.value = current.copy(
+                            result = current.result.copy(
+                                notOnWatch = cached.sortedBy { it.appLabel.lowercase() }
+                            )
+                        )
+                    }
+                }
+
+                // Check remaining apps via network
+                if (needsCheck.isNotEmpty()) {
+                    val results = playStoreChecker.checkPackages(needsCheck.map { it.packageName })
+                    val discovered = needsCheck.filter { app ->
+                        results[app.packageName] == WearCheckResult.HAS_WEAR_VERSION
+                    }
+
+                    val allWearApps = (cached + discovered).sortedBy { it.appLabel.lowercase() }
+
+                    val current = _uiState.value
+                    if (current is UiState.Success) {
+                        _uiState.value = current.copy(
+                            result = current.result.copy(
+                                notOnWatch = allWearApps
+                            ),
+                            isCheckingPlayStore = false,
+                            hasCheckedPlayStore = true
+                        )
+                    }
+                } else {
+                    val current = _uiState.value
+                    if (current is UiState.Success) {
+                        _uiState.value = current.copy(
+                            isCheckingPlayStore = false,
+                            hasCheckedPlayStore = true
+                        )
+                    }
                 }
             } catch (_: Exception) {
                 val current = _uiState.value
@@ -163,7 +195,7 @@ class MainViewModel(
         val currentState = _uiState.value
         if (currentState !is UiState.Success) return
 
-        val apps = currentState.result.notOnWatch + currentState.result.discoveredWearApps
+        val apps = currentState.result.notOnWatch
         if (apps.isEmpty()) return
 
         viewModelScope.launch {

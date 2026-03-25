@@ -32,8 +32,11 @@ class WearSyncListenerService : WearableListenerService() {
 
     private fun getInstalledPackages(): String {
         val pm = packageManager
+        // Include ALL packages — don't filter system apps.
+        // On Wear OS, many apps (Maps, Keep, Wallet, etc.) are pre-installed
+        // and flagged as system apps. Filtering them out causes false negatives
+        // where the phone thinks the watch doesn't have them.
         return pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
             .joinToString("\n") { it.packageName }
     }
 
