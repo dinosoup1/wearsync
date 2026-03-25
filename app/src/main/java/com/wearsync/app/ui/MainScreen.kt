@@ -44,9 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -139,8 +139,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     onRefresh = { viewModel.loadData() },
                     onAppClick = { viewModel.openPlayStore(it.packageName) },
                     onBatchInstall = { viewModel.batchInstall() },
-                    onCheckPlayStore = { viewModel.checkPlayStore() },
-                    onToggleAutoCheck = { viewModel.toggleAutoCheckPlayStore() }
+                    onCheckPlayStore = { viewModel.checkPlayStore() }
                 )
             }
         }
@@ -215,8 +214,7 @@ private fun SuccessContent(
     onRefresh: () -> Unit,
     onAppClick: (AppInfo) -> Unit,
     onBatchInstall: () -> Unit,
-    onCheckPlayStore: () -> Unit,
-    onToggleAutoCheck: () -> Unit
+    onCheckPlayStore: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
@@ -280,12 +278,8 @@ private fun SuccessContent(
                         discoveredApps = discovered,
                         onAppClick = onAppClick,
                         onBatchInstall = onBatchInstall,
-                        onCheckPlayStore = onCheckPlayStore,
                         isCheckingPlayStore = result.isCheckingPlayStore,
-                        hasCheckedPlayStore = result.hasCheckedPlayStore,
-                        uncheckedCount = result.uncheckedCount,
-                        autoCheckPlayStore = result.autoCheckPlayStore,
-                        onToggleAutoCheck = onToggleAutoCheck
+                        hasCheckedPlayStore = result.hasCheckedPlayStore
                     )
                     1 -> AlreadyInstalledTab(apps = alreadyInstalled)
                 }
@@ -300,12 +294,8 @@ private fun NotOnWatchTab(
     discoveredApps: List<AppInfo>,
     onAppClick: (AppInfo) -> Unit,
     onBatchInstall: () -> Unit,
-    onCheckPlayStore: () -> Unit,
     isCheckingPlayStore: Boolean,
-    hasCheckedPlayStore: Boolean,
-    uncheckedCount: Int,
-    autoCheckPlayStore: Boolean,
-    onToggleAutoCheck: () -> Unit
+    hasCheckedPlayStore: Boolean
 ) {
     val totalApps = knownApps.size + discoveredApps.size
     if (totalApps == 0 && !isCheckingPlayStore && hasCheckedPlayStore) {
@@ -372,63 +362,34 @@ private fun NotOnWatchTab(
                 }
             }
 
-            if (!hasCheckedPlayStore && uncheckedCount > 0) {
-                item(key = "check_button") {
+            if (isCheckingPlayStore) {
+                item(key = "checking_indicator") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (isCheckingPlayStore) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "Checking Play Store…",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            OutlinedButton(onClick = onCheckPlayStore) {
-                                Icon(
-                                    Icons.Outlined.Search,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Check Play Store for more ($uncheckedCount apps)")
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = "Auto-check Play Store",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
                             )
-                            Switch(
-                                checked = autoCheckPlayStore,
-                                onCheckedChange = { onToggleAutoCheck() }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Checking Play Store for Wear OS apps…",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             }
 
-            if (knownApps.isEmpty() && discoveredApps.isEmpty() && !isCheckingPlayStore && !hasCheckedPlayStore && uncheckedCount == 0) {
+            if (knownApps.isEmpty() && discoveredApps.isEmpty() && !isCheckingPlayStore && hasCheckedPlayStore) {
                 item(key = "empty_known") {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(32.dp),
