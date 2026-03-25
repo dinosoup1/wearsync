@@ -24,14 +24,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AppBlocking
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PhonelinkOff
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.WatchOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -40,7 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -132,7 +138,9 @@ fun MainScreen(viewModel: MainViewModel) {
                     result = state,
                     onRefresh = { viewModel.loadData() },
                     onAppClick = { viewModel.openPlayStore(it.packageName) },
-                    onBatchInstall = { viewModel.batchInstall() }
+                    onBatchInstall = { viewModel.batchInstall() },
+                    onCheckPlayStore = { viewModel.checkPlayStore() },
+                    onToggleAutoCheck = { viewModel.toggleAutoCheckPlayStore() }
                 )
             }
         }
@@ -206,13 +214,17 @@ private fun SuccessContent(
     result: UiState.Success,
     onRefresh: () -> Unit,
     onAppClick: (AppInfo) -> Unit,
-    onBatchInstall: () -> Unit
+    onBatchInstall: () -> Unit,
+    onCheckPlayStore: () -> Unit,
+    onToggleAutoCheck: () -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
 
     val notOnWatch = result.result.notOnWatch
+    val discovered = result.result.discoveredWearApps
     val alreadyInstalled = result.result.alreadyOnWatch
+    val totalNotOnWatch = notOnWatch.size + discovered.size
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(
@@ -225,8 +237,8 @@ private fun SuccessContent(
                 text = {
                     BadgedBox(
                         badge = {
-                            if (notOnWatch.isNotEmpty()) {
-                                Badge { Text("${notOnWatch.size}") }
+                            if (totalNotOnWatch > 0) {
+                                Badge { Text("$totalNotOnWatch") }
                             }
                         }
                     ) {
@@ -264,9 +276,16 @@ private fun SuccessContent(
             ) { page ->
                 when (page) {
                     0 -> NotOnWatchTab(
-                        apps = notOnWatch,
+                        knownApps = notOnWatch,
+                        discoveredApps = discovered,
                         onAppClick = onAppClick,
-                        onBatchInstall = onBatchInstall
+                        onBatchInstall = onBatchInstall,
+                        onCheckPlayStore = onCheckPlayStore,
+                        isCheckingPlayStore = result.isCheckingPlayStore,
+                        hasCheckedPlayStore = result.hasCheckedPlayStore,
+                        uncheckedCount = result.uncheckedCount,
+                        autoCheckPlayStore = result.autoCheckPlayStore,
+                        onToggleAutoCheck = onToggleAutoCheck
                     )
                     1 -> AlreadyInstalledTab(apps = alreadyInstalled)
                 }
@@ -277,11 +296,19 @@ private fun SuccessContent(
 
 @Composable
 private fun NotOnWatchTab(
-    apps: List<AppInfo>,
+    knownApps: List<AppInfo>,
+    discoveredApps: List<AppInfo>,
     onAppClick: (AppInfo) -> Unit,
-    onBatchInstall: () -> Unit
+    onBatchInstall: () -> Unit,
+    onCheckPlayStore: () -> Unit,
+    isCheckingPlayStore: Boolean,
+    hasCheckedPlayStore: Boolean,
+    uncheckedCount: Int,
+    autoCheckPlayStore: Boolean,
+    onToggleAutoCheck: () -> Unit
 ) {
-    if (apps.isEmpty()) {
+    val totalApps = knownApps.size + discoveredApps.size
+    if (totalApps == 0 && !isCheckingPlayStore && hasCheckedPlayStore) {
         EmptyState(
             icon = Icons.Outlined.Watch,
             title = "All synced up!",
@@ -292,41 +319,209 @@ private fun NotOnWatchTab(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            contentPadding = PaddingValues(bottom = 88.dp, top = 4.dp),
+            contentPadding = PaddingValues(bottom = if (totalApps > 0) 88.dp else 16.dp, top = 4.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(apps, key = { it.packageName }) { app ->
-                AppItem(
-                    app = app,
-                    trailing = {
-                        FilledTonalButton(
-                            onClick = { onAppClick(app) },
+            if (!hasCheckedPlayStore && knownApps.isEmpty() && discoveredApps.isEmpty()) {
+                item(key = "info_card") {
+                    InfoCard()
+                }
+            }
+
+            if (knownApps.isNotEmpty()) {
+                item(key = "header_known") {
+                    SectionHeader("Known Wear OS Apps", knownApps.size)
+                }
+                items(knownApps, key = { "known_${it.packageName}" }) { app ->
+                    AppItem(
+                        app = app,
+                        trailing = {
+                            FilledTonalButton(onClick = { onAppClick(app) }) {
+                                Icon(
+                                    Icons.Outlined.CloudDownload,
+                                    contentDescription = "Install",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Get", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (discoveredApps.isNotEmpty()) {
+                item(key = "header_discovered") {
+                    SectionHeader("More apps found", discoveredApps.size)
+                }
+                items(discoveredApps, key = { "disc_${it.packageName}" }) { app ->
+                    AppItem(
+                        app = app,
+                        trailing = {
+                            FilledTonalButton(onClick = { onAppClick(app) }) {
+                                Icon(
+                                    Icons.Outlined.CloudDownload,
+                                    contentDescription = "Install",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Get", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (!hasCheckedPlayStore && uncheckedCount > 0) {
+                item(key = "check_button") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isCheckingPlayStore) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Checking Play Store…",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            OutlinedButton(onClick = onCheckPlayStore) {
+                                Icon(
+                                    Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Check Play Store for more ($uncheckedCount apps)")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp)
                         ) {
-                            Icon(
-                                Icons.Outlined.CloudDownload,
-                                contentDescription = "Install",
-                                modifier = Modifier.size(16.dp)
+                            Text(
+                                text = "Auto-check Play Store",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Get", style = MaterialTheme.typography.labelMedium)
+                            Switch(
+                                checked = autoCheckPlayStore,
+                                onCheckedChange = { onToggleAutoCheck() }
+                            )
                         }
                     }
-                )
+                }
+            }
+
+            if (knownApps.isEmpty() && discoveredApps.isEmpty() && !isCheckingPlayStore && !hasCheckedPlayStore && uncheckedCount == 0) {
+                item(key = "empty_known") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Watch,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "All synced up!",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Every app on your phone is also on your watch",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = onBatchInstall,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        ) {
-            Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Install All")
+        if (totalApps > 0) {
+            ExtendedFloatingActionButton(
+                onClick = onBatchInstall,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Install All")
+            }
         }
+    }
+}
+
+@Composable
+private fun InfoCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "WearSync checks which of your apps have Wear OS versions. " +
+                    "By default, it uses an offline database. " +
+                    "Tap \u201cCheck for more\u201d to scan the Play Store for additional apps.",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        Badge { Text("$count") }
     }
 }
 
