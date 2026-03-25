@@ -1,7 +1,7 @@
 {
-  "version": 2,
+  "version": 3,
   "updated": "2026-03-25",
-  "note": "Only apps with VERIFIED standalone Wear OS versions on Google Play Store",
+  "note": "STRICTLY verified apps with standalone Wear OS versions confirmed on Play Store Watch tab",
   "apps": [
     {"package": "com.google.android.apps.maps", "name": "Google Maps"},
     {"package": "com.google.android.keep", "name": "Google Keep"},
@@ -14,63 +14,34 @@
     {"package": "com.google.android.gm", "name": "Gmail"},
     {"package": "com.google.android.calendar", "name": "Google Calendar"},
     {"package": "com.google.android.deskclock", "name": "Google Clock"},
-    {"package": "com.google.android.apps.assistant", "name": "Google Assistant"},
-    {"package": "com.google.android.dialer", "name": "Google Phone"},
-    {"package": "com.google.android.apps.tasks", "name": "Google Tasks"},
-    {"package": "com.google.android.apps.recorder", "name": "Google Recorder"},
+    {"package": "com.google.android.apps.fitness", "name": "Google Fit"},
 
     {"package": "com.spotify.music", "name": "Spotify"},
     {"package": "com.whatsapp", "name": "WhatsApp"},
     {"package": "com.strava", "name": "Strava"},
     {"package": "com.todoist", "name": "Todoist"},
-    {"package": "com.microsoft.office.outlook", "name": "Microsoft Outlook"},
+    {"package": "com.microsoft.office.outlook", "name": "Outlook"},
     {"package": "com.shazam.android", "name": "Shazam"},
     {"package": "com.calm.android", "name": "Calm"},
     {"package": "com.citymapper.app.release", "name": "Citymapper"},
-    {"package": "com.hole19golf.hole19.beta", "name": "Hole19 Golf"},
     {"package": "com.deezer.android.app", "name": "Deezer"},
     {"package": "com.amazon.mp3", "name": "Amazon Music"},
-
+    {"package": "com.headspace.android", "name": "Headspace"},
     {"package": "com.accuweather.android", "name": "AccuWeather"},
-    {"package": "com.wundergound.android.weather", "name": "Weather Underground"},
-
-    {"package": "com.ubercab", "name": "Uber"},
-    {"package": "me.lyft.android", "name": "Lyft"},
 
     {"package": "org.telegram.messenger", "name": "Telegram"},
     {"package": "com.kakao.talk", "name": "KakaoTalk"},
 
     {"package": "com.nike.plusgps", "name": "Nike Run Club"},
-    {"package": "com.myfitnesspal.android", "name": "MyFitnessPal"},
-    {"package": "com.adidas.app", "name": "adidas Running"},
     {"package": "de.komoot.android", "name": "Komoot"},
     {"package": "com.alltrails.alltrails", "name": "AllTrails"},
-    {"package": "cc.pacer.androidapp", "name": "Pacer Pedometer"},
     {"package": "com.fitnesskeeper.runkeeper.pro", "name": "Runkeeper"},
     {"package": "com.mapmyrun.android2", "name": "MapMyRun"},
     {"package": "com.outdooractive.Outdooractive", "name": "Outdooractive"},
 
-    {"package": "com.microsoft.todos", "name": "Microsoft To Do"},
-    {"package": "com.microsoft.teams", "name": "Microsoft Teams"},
-    {"package": "com.microsoft.authenticator", "name": "Microsoft Authenticator"},
-    {"package": "com.authy.authy", "name": "Twilio Authy"},
-
-    {"package": "com.pandora.android", "name": "Pandora"},
-    {"package": "com.iheart.android", "name": "iHeartRadio"},
-    {"package": "com.soundcloud.android", "name": "SoundCloud"},
-    {"package": "com.gaana", "name": "Gaana"},
-    {"package": "com.jio.media.jiobeats", "name": "JioSaavn"},
-
-    {"package": "com.nianticlabs.pokemongo", "name": "Pokemon GO"},
     {"package": "com.sleep.android", "name": "Sleep as Android"},
-    {"package": "com.google.android.apps.fitness", "name": "Google Fit"},
-    {"package": "com.samsung.android.app.watchmanager", "name": "Galaxy Wearable"},
-
-    {"package": "com.headspace.android", "name": "Headspace"},
-    {"package": "com.grindrapp.android", "name": "Grindr"},
-    {"package": "com.life360.android.safetymapd", "name": "Life360"},
-    {"package": "com.camerasideas.instaweather", "name": "InstaWeather"},
-    {"package": "com.google.android.apps.translate", "name": "Google Translate"},
-    {"package": "com.paypal.android.p2pmobile", "name": "PayPal"}
+    {"package": "com.nianticlabs.pokemongo", "name": "Pokemon GO"},
+    {"package": "com.pandora.android", "name": "Pandora"},
+    {"package": "com.iheart.android", "name": "iHeartRadio"}
   ]
 }

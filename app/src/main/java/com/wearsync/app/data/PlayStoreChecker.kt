@@ -74,12 +74,27 @@ class PlayStoreChecker(context: Context) {
                     if (code != 200) return@withContext WearCheckResult.NO_WEAR_VERSION
 
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val lower = body.lowercase()
 
-                    if (lower.contains("wear os") || lower.contains("android wear") ||
-                        lower.contains("smartwatch") || lower.contains("watch face") ||
-                        lower.contains("watch app")
-                    ) {
+                    // The Play Store shows device tabs like "Phone", "Watch", "Tablet", etc.
+                    // Only apps with actual Wear OS versions have a "Watch" device tab.
+                    // We look for this specific indicator, NOT generic "Wear OS" text mentions
+                    // which can appear in descriptions of apps that don't have watch versions.
+                    //
+                    // The device tabs appear in the page as elements containing device type names.
+                    // Common patterns in the rendered HTML:
+                    // - "Watch" as a device filter/tab option
+                    // - "Wear OS" in the device compatibility section (not description)
+                    val hasWatchDeviceTab = body.contains(">Watch<") ||
+                        body.contains(">Watch •") ||
+                        body.contains("\"Watch\"") ||
+                        // Google encodes device types in structured data
+                        body.contains("WATCH_TYPE") ||
+                        body.contains("watch_type") ||
+                        // Form factor indicators in Play Store metadata
+                        body.contains("FORM_FACTOR_WATCH") ||
+                        body.contains("form_factor_watch")
+
+                    if (hasWatchDeviceTab) {
                         WearCheckResult.HAS_WEAR_VERSION
                     } else {
                         WearCheckResult.NO_WEAR_VERSION
